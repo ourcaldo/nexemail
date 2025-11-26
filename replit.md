@@ -6,6 +6,27 @@ Reacher is an open-source email verification service that checks if email addres
 
 Preferred communication style: Simple, everyday language.
 
+# Recent Changes
+
+## proxy_data Enhancement (November 2025)
+
+Made `proxy_data` a required field in all API responses. The field now always shows connection information:
+
+- **When using a proxy**: Format is `proxy:host:port` or `proxy:host:port@username:password`
+- **When using local connection**: Format is `local:ip_address` (public IPv4) or `local:hostname` as fallback
+
+### Files Modified:
+- `core/src/util/public_ip.rs` - New utility module for fetching and caching public IP address
+- `core/src/util/mod.rs` - Added public_ip module export
+- `core/src/smtp/mod.rs` - Updated all verification method structs to include required proxy_data field
+- `core/Cargo.toml` - Added hostname dependency
+
+### Key Changes:
+1. `SmtpDebugVerifMethodSmtp.proxy_data` changed from `Option<String>` to `String`
+2. Added new structs: `SmtpDebugVerifMethodApi`, `SmtpDebugVerifMethodHeadless`, `SmtpDebugVerifMethodSkipped`
+3. `format_proxy_data()` function is now async and always returns a String
+4. Public IP is cached for 5 minutes to avoid repeated external API calls
+
 # System Architecture
 
 ## Core Email Verification Engine

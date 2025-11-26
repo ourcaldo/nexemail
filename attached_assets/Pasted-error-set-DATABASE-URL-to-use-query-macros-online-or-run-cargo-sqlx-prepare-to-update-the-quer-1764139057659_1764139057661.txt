@@ -1,0 +1,222 @@
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+  --> backend/src/http/v0/bulk/get.rs:75:16
+   |
+75 |       let job_rec = sqlx::query_as!(
+   |  ___________________^
+76 | |         JobRecord,
+77 | |         r#"
+78 | |         SELECT id, created_at, total_records FROM bulk_jobs
+...  |
+82 | |         job_id
+83 | |     )
+   | |_____^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query_as` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+   --> backend/src/http/v0/bulk/get.rs:95:17
+    |
+ 95 |       let agg_info = sqlx::query!(
+    |  ____________________^
+ 96 | |         r#"
+ 97 | |         SELECT
+ 98 | |             COUNT(*) as total_processed,
+...   |
+107 | |         job_id
+108 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+   --> backend/src/http/v0/bulk/post.rs:98:12
+    |
+ 98 |       let rec = sqlx::query!(
+    |  _______________^
+ 99 | |         r#"
+100 | |         INSERT INTO bulk_jobs (total_records)
+101 | |         VALUES ($1)
+...   |
+104 | |         body.input.len() as i32
+105 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+  --> backend/src/http/v0/bulk/results/mod.rs:65:22
+   |
+65 |       let total_records = sqlx::query!(
+   |  _________________________^
+66 | |         r#"SELECT total_records FROM bulk_jobs WHERE id = $1;"#,
+67 | |         job_id
+68 | |     )
+   | |_____^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+  --> backend/src/http/v0/bulk/results/mod.rs:80:24
+   |
+80 |       let total_processed = sqlx::query!(
+   |  ___________________________^
+81 | |         r#"SELECT COUNT(*) FROM email_results WHERE job_id = $1;"#,
+82 | |         job_id
+83 | |     )
+   | |_____^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+   --> backend/src/http/v0/bulk/results/mod.rs:139:14
+    |
+139 |       let query = sqlx::query!(
+    |  _________________^
+140 | |         r#"
+141 | |         SELECT result FROM email_results
+142 | |         WHERE job_id = $1
+...   |
+148 | |         offset as i64
+149 | |     );
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+   --> backend/src/http/v0/bulk/task.rs:216:13
+    |
+216 |           let rec = sqlx::query!(
+    |  ___________________^
+217 | |             r#"
+218 | |             INSERT INTO email_results (job_id, result)
+219 | |             VALUES ($1, $2)
+...   |
+222 | |             serde_json::json!(response)
+223 | |         )
+    | |_________^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+  --> backend/src/http/v1/bulk/get_progress.rs:76:16
+   |
+76 |       let job_rec = sqlx::query_as!(
+   |  ___________________^
+77 | |         JobRecord,
+78 | |         r#"
+79 | |         SELECT id, created_at, total_records FROM v1_bulk_job
+...  |
+83 | |         job_id
+84 | |     )
+   | |_____^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query_as` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+   --> backend/src/http/v1/bulk/get_progress.rs:89:17
+    |
+ 89 |       let agg_info = sqlx::query!(
+    |  ____________________^
+ 90 | |         r#"
+ 91 | |         SELECT
+ 92 | |             COUNT(*) as total_processed,
+...   |
+101 | |         job_id
+102 | |     )
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+  --> backend/src/http/v1/bulk/get_results/mod.rs:64:22
+   |
+64 |       let total_records = sqlx::query!(
+   |  _________________________^
+65 | |         r#"SELECT total_records FROM v1_bulk_job WHERE id = $1;"#,
+66 | |         job_id
+67 | |     )
+   | |_____^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+  --> backend/src/http/v1/bulk/get_results/mod.rs:72:24
+   |
+72 |       let total_processed = sqlx::query!(
+   |  ___________________________^
+73 | |         r#"SELECT COUNT(*) FROM v1_task_result WHERE job_id = $1;"#,
+74 | |         job_id
+75 | |     )
+   | |_____^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+   --> backend/src/http/v1/bulk/get_results/mod.rs:118:14
+    |
+118 |       let query = sqlx::query!(
+    |  _________________^
+119 | |         r#"
+120 | |         SELECT result FROM v1_task_result
+121 | |         WHERE job_id = $1
+...   |
+127 | |         offset as i64
+128 | |     );
+    | |_____^
+    |
+    = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+  --> backend/src/http/v1/bulk/post.rs:66:12
+   |
+66 |       let rec = sqlx::query!(
+   |  _______________^
+67 | |         r#"
+68 | |         INSERT INTO v1_bulk_job (total_records)
+69 | |         VALUES ($1)
+...  |
+72 | |         body.input.len() as i32
+73 | |     )
+   | |_____^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+  --> backend/src/storage/postgres.rs:57:5
+   |
+57 | /                 sqlx::query!(
+58 | |                     r#"
+59 | |                     INSERT INTO v1_task_result (payload, job_id, extra, result)
+60 | |                     VALUES ($1, $2, $3, $4)
+...  |
+69 | |                     output_json,
+70 | |                 )
+   | |_________________^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: set `DATABASE_URL` to use query macros online, or run `cargo sqlx prepare` to update the query cache
+  --> backend/src/storage/postgres.rs:75:5
+   |
+75 | /                 sqlx::query!(
+76 | |                     r#"
+77 | |                     INSERT INTO v1_task_result (payload, job_id, extra, error)
+78 | |                     VALUES ($1, $2, $3, $4)
+...  |
+87 | |                     err.to_string(),
+88 | |                 )
+   | |_________________^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::expand_query` which comes from the expansion of the macro `sqlx::query` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `CheckEmailJobId`
+  --> backend/src/storage/postgres.rs:18:30
+   |
+18 | use crate::worker::do_work::{CheckEmailJobId, CheckEmailTask, TaskError};
+   |                              ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `reacher_backend` (lib) generated 1 warning
+error: could not compile `reacher_backend` (lib) due to 15 previous errors; 1 warning emitted
+warning: build failed, waiting for other jobs to finish...

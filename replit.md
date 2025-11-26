@@ -8,6 +8,51 @@ Preferred communication style: Simple, everyday language.
 
 # Recent Changes
 
+## Reason Field Enhancement (November 2025)
+
+Added a required `reason` field to all API responses that explains why an email is classified as `safe`, `risky`, `invalid`, or `unknown`. This field provides human-readable explanations for debugging and understanding verification results.
+
+### Reason Field Values:
+
+- **Safe**: `"Email verification passed all checks"`
+- **Risky**: Lists specific issues found:
+  - `"Risky: disposable email address"`
+  - `"Risky: role-based account (e.g., admin@, support@)"`
+  - `"Risky: catch-all address (accepts all emails)"`
+  - `"Risky: inbox is full"`
+  - Multiple issues are combined: `"Risky: disposable email address, role-based account"`
+- **Invalid**: Lists specific issues found:
+  - `"Invalid: email syntax is invalid"`
+  - `"Invalid: no MX records found for domain"`
+  - `"Invalid: cannot connect to SMTP server"`
+  - `"Invalid: email account is disabled"`
+  - `"Invalid: email is not deliverable"`
+- **Unknown**: Includes specific error information:
+  - `"Unknown: SMTP connection timed out after Xs"`
+  - `"Unknown: SOCKS5 proxy connection failed - <error>"`
+  - `"Unknown: Yahoo verification failed - <error>"`
+  - `"Unknown: Gmail verification failed - <error>"`
+  - `"Unknown: Microsoft 365 verification failed - <error>"`
+  - `"Unknown: MX lookup failed - <error>"`
+
+### Files Modified:
+- `core/src/lib.rs` - Added `calculate_reachable_with_reason()` and `format_smtp_error_reason()` functions
+- `core/src/util/input_output.rs` - Added `reason` field to `CheckEmailOutput` struct and serialization
+
+### Example API Response:
+```json
+{
+  "input": "test@example.com",
+  "is_reachable": "risky",
+  "reason": "Risky: disposable email address",
+  "misc": { ... },
+  "mx": { ... },
+  "smtp": { ... },
+  "syntax": { ... },
+  "debug": { ... }
+}
+```
+
 ## proxy_data Enhancement (November 2025)
 
 Made `proxy_data` a required field in all API responses. The field now always shows connection information:

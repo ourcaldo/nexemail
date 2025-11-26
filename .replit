@@ -1,4 +1,4 @@
-modules = ["rust-stable", "bash"]
+modules = ["rust-stable", "bash", "rust-1.84"]
 [agent]
 expertMode = true
 

@@ -53,6 +53,53 @@ Added a required `reason` field to all API responses that explains why an email 
 }
 ```
 
+## Proxy Rotation Enhancement (November 2025)
+
+Added automatic proxy rotation functionality that allows Reacher to automatically rotate between multiple defined proxies for load balancing.
+
+### Configuration:
+- **Enable rotation**: Set `RCH__PROXY_POOL__ENABLED=true` (or in TOML: `[proxy_pool] enabled = true`)
+- **Strategy**: Set `RCH__PROXY_POOL__STRATEGY=round_robin` or `random`
+
+### How It Works:
+1. Define multiple proxies in `[overrides.proxies]` section
+2. Enable proxy pool rotation
+3. Requests automatically rotate through all proxies
+
+### Priority Order:
+1. Provider-specific routing (e.g., `RCH__OVERRIDES__GMAIL__PROXY=proxy1`) always takes priority
+2. If no provider routing, rotation uses next proxy from pool
+3. Fallback to default proxy if rotation is disabled
+
+### Files Modified:
+- `core/src/smtp/verif_method.rs` - Added `ProxyRotationStrategy`, `ProxyPoolConfig`, `get_proxy_with_rotation()`
+- `core/src/smtp/proxy_rotator.rs` - New module for proxy rotation logic
+- `core/src/smtp/mod.rs` - Updated `check_smtp()` to use rotator
+- `backend/src/config.rs` - Added `proxy_pool` to `BackendConfig`
+- `backend/backend_config.toml` - Added `[proxy_pool]` configuration section
+
+### Example Configuration:
+```toml
+[proxy_pool]
+enabled = true
+strategy = "round_robin"
+
+[overrides.proxies]
+proxy1 = { host = "proxy1.example.com", port = 1080 }
+proxy2 = { host = "proxy2.example.com", port = 1080 }
+proxy3 = { host = "proxy3.example.com", port = 1080 }
+```
+
+Or via environment variables:
+```bash
+RCH__PROXY_POOL__ENABLED=true
+RCH__PROXY_POOL__STRATEGY=round_robin
+RCH__OVERRIDES__PROXIES__PROXY1__HOST=proxy1.example.com
+RCH__OVERRIDES__PROXIES__PROXY1__PORT=1080
+RCH__OVERRIDES__PROXIES__PROXY2__HOST=proxy2.example.com
+RCH__OVERRIDES__PROXIES__PROXY2__PORT=1080
+```
+
 ## proxy_data Enhancement (November 2025)
 
 Made `proxy_data` a required field in all API responses. The field now always shows connection information:

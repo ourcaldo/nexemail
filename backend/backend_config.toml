@@ -113,6 +113,27 @@ webdriver_addr = "http://localhost:9515"
 # etc. Then, in the email provider's SMTP configuration, set the value to the
 # name of the proxy to use. To use the proxy defined the the top-level "proxy"
 # section, set the value to "default".
+# Proxy pool configuration for automatic rotation between proxies.
+# When enabled, requests will automatically rotate through all defined proxies
+# instead of always using the default proxy. Provider-specific routing rules
+# (set in [overrides.<provider>]) always take priority over rotation.
+#
+# This is useful for load balancing across multiple proxies without having to
+# manually set routing rules for each email provider.
+[proxy_pool]
+# Enable proxy rotation. When false (default), only the default proxy or
+# provider-specific proxies are used.
+#
+# Env variable: RCH__PROXY_POOL__ENABLED
+enabled = false
+
+# Rotation strategy: "round_robin" or "random"
+# - round_robin: Cycle through proxies in order (proxy1 -> proxy2 -> proxy3 -> proxy1...)
+# - random: Random proxy selection for each request
+#
+# Env variable: RCH__PROXY_POOL__STRATEGY
+strategy = "round_robin"
+
 [overrides]
 # Use the "proxies" configuration below to route SMTP verification requests
 # through a specified proxy.
@@ -123,6 +144,9 @@ webdriver_addr = "http://localhost:9515"
 # In the `overrides` section below, you can specify which proxy to use for
 # each email provider. For example, to use "proxy1" for Gmail and "proxy2" for
 # Yahoo, set the `gmail` field to "proxy1" and the `yahoo` field to "proxy2".
+#
+# If proxy_pool is enabled, proxies defined here will be automatically rotated
+# for providers without explicit routing rules.
 [overrides.proxies]
 # Uncomment the lines below to configure a proxy. The username and password are
 # optional and only needed if the proxy requires authentication.

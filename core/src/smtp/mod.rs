@@ -21,6 +21,7 @@ mod headless;
 mod http_api;
 mod outlook;
 mod parser;
+pub mod proxy_rotator;
 pub mod verif_method;
 mod yahoo;
 
@@ -29,6 +30,7 @@ use crate::util::public_ip::get_public_ip;
 use crate::EmailAddress;
 use connect::check_smtp_with_retry;
 use hickory_proto::rr::Name;
+use proxy_rotator::ProxyRotator;
 use serde::{Deserialize, Serialize};
 use std::default::Default;
 use verif_method::{
@@ -215,13 +217,31 @@ pub async fn check_smtp(
         }
         .clone();
 
-        // TODO: There's surely a way to not clone here.
-        let proxy = input.verif_method.get_proxy(email_provider);
+        let rotator = if input.verif_method.proxy_pool.enabled {
+                let proxy_ids: Vec<String> = input
+                        .verif_method
+                        .proxies
+                        .keys()
+                        .filter(|id| *id != verif_method::DEFAULT_PROXY_ID)
+                        .cloned()
+                        .collect();
+                if proxy_ids.is_empty() {
+                        None
+                } else {
+                        Some(ProxyRotator::new(
+                                proxy_ids,
+                                input.verif_method.proxy_pool.strategy.clone(),
+                        ))
+                }
+        } else {
+                None
+        };
+
+        let proxy = input
+                .verif_method
+                .get_proxy_with_rotation(&email_provider, rotator.as_ref());
         let proxy_data = format_proxy_data(proxy).await;
-        let verif_method = VerifMethodSmtp::new(
-                smtp_verif_method_config.clone(),
-                proxy.cloned(),
-        );
+        let verif_method = VerifMethodSmtp::new(smtp_verif_method_config.clone(), proxy.cloned());
 
         (
                 check_smtp_with_retry(

@@ -1,0 +1,103 @@
+root@vms-syd-ibm:~/nexemail# rm -rf temp.zip check-if-email-exists-master
+
+root@vms-syd-ibm:~/nexemail# SQLX_OFFLINE=true cargo build --release --bin reacher_backend
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   /root/nexemail/cli/Cargo.toml
+workspace: /root/nexemail/Cargo.toml
+   Compiling reacher_backend v0.11.6 (/root/nexemail/backend)
+warning: field `0` is never read
+  --> backend/src/http/v0/bulk/error.rs:21:9
+   |
+21 |     CsvLib(csv::Error),
+   |     ------ ^^^^^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `CsvError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+21 -     CsvLib(csv::Error),
+21 +     CsvLib(()),
+   |
+
+warning: field `0` is never read
+  --> backend/src/http/v0/bulk/error.rs:22:15
+   |
+22 |     CsvLibWriter(Box<csv::IntoInnerError<csv::Writer<Vec<u8>>>>),
+   |     ------------ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `CsvError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+22 -     CsvLibWriter(Box<csv::IntoInnerError<csv::Writer<Vec<u8>>>>),
+22 +     CsvLibWriter(()),
+   |
+
+warning: field `0` is never read
+  --> backend/src/http/v0/bulk/error.rs:23:8
+   |
+23 |     Parse(&'static str),
+   |     ----- ^^^^^^^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `CsvError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+23 -     Parse(&'static str),
+23 +     Parse(()),
+   |
+
+warning: field `0` is never read
+  --> backend/src/http/v0/bulk/error.rs:31:5
+   |
+31 |     Db(sqlx::Error),
+   |     -- ^^^^^^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `BulkError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+31 -     Db(sqlx::Error),
+31 +     Db(()),
+   |
+
+warning: field `0` is never read
+  --> backend/src/http/v0/bulk/error.rs:32:6
+   |
+32 |     Csv(CsvError),
+   |     --- ^^^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `BulkError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+32 -     Csv(CsvError),
+32 +     Csv(()),
+   |
+
+warning: field `0` is never read
+  --> backend/src/http/v0/bulk/error.rs:33:7
+   |
+33 |     Json(serde_json::Error),
+   |     ---- ^^^^^^^^^^^^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `BulkError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+33 -     Json(serde_json::Error),
+33 +     Json(()),
+   |
+
+warning: `reacher_backend` (lib) generated 6 warnings
+    Finished `release` profile [optimized] target(s) in 31.86s
+warning: the following packages contain code that will be rejected by a future version of Rust: sqlx-postgres v0.7.4
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+root@vms-syd-ibm:~/nexemail#

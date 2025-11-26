@@ -19,6 +19,7 @@ use crate::throttle::ThrottleManager;
 use crate::worker::do_work::TaskWebhook;
 use crate::worker::setup_rabbit_mq;
 use anyhow::{bail, Context};
+use check_if_email_exists::smtp::proxy_rotator::ProxyRotator;
 use check_if_email_exists::smtp::verif_method::{
         EverythingElseVerifMethod, GmailVerifMethod, HotmailB2BVerifMethod, HotmailB2CVerifMethod,
         MimecastVerifMethod, ProofpointVerifMethod, ProxyPoolConfig, VerifMethod,
@@ -32,7 +33,7 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::warn;
+use tracing::{info, warn};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BackendConfig {
@@ -93,6 +94,9 @@ pub struct BackendConfig {
 
         #[serde(skip)]
         throttle_manager: Arc<ThrottleManager>,
+
+        #[serde(skip)]
+        proxy_rotator: Option<Arc<ProxyRotator>>,
 }
 
 impl BackendConfig {
@@ -121,6 +125,42 @@ impl BackendConfig {
                         throttle_manager: Arc::new(
                                 ThrottleManager::new(ThrottleConfig::new_without_throttle()),
                         ),
+                        proxy_rotator: None,
+                }
+        }
+
+        /// Get the shared proxy rotator for round-robin rotation across requests.
+        pub fn get_proxy_rotator(&self) -> Option<Arc<ProxyRotator>> {
+                self.proxy_rotator.clone()
+        }
+
+        /// Initialize the proxy rotator based on the configuration.
+        /// This should be called after loading the configuration.
+        pub fn init_proxy_rotator(&mut self) {
+                if self.proxy_pool.enabled {
+                        let proxy_ids: Vec<String> = self
+                                .overrides
+                                .proxies
+                                .keys()
+                                .filter(|id| *id != DEFAULT_PROXY_ID)
+                                .cloned()
+                                .collect();
+
+                        if !proxy_ids.is_empty() {
+                                let rotator = ProxyRotator::new(proxy_ids.clone(), self.proxy_pool.strategy.clone());
+                                info!(
+                                        target: LOG_TARGET,
+                                        proxy_count = proxy_ids.len(),
+                                        strategy = ?self.proxy_pool.strategy,
+                                        "Initialized shared proxy rotator for round-robin rotation"
+                                );
+                                self.proxy_rotator = Some(Arc::new(rotator));
+                        } else {
+                                warn!(
+                                        target: LOG_TARGET,
+                                        "Proxy pool is enabled but no proxies are configured"
+                                );
+                        }
                 }
         }
 
@@ -328,7 +368,7 @@ pub async fn load_config() -> Result<BackendConfig, anyhow::Error> {
                 .add_source(config::File::with_name("backend_config"))
                 .add_source(config::Environment::with_prefix("RCH").separator("__"));
 
-        let cfg = cfg.build()?.try_deserialize::<BackendConfig>()?;
+        let mut cfg = cfg.build()?.try_deserialize::<BackendConfig>()?;
 
         // Perform additional checks
 
@@ -346,6 +386,9 @@ pub async fn load_config() -> Result<BackendConfig, anyhow::Error> {
         // provider's verification method, the proxy (if set) must exist in the
         // `proxies` field.
         cfg.get_verif_method().validate_proxies()?;
+
+        // 3. Initialize the shared proxy rotator for round-robin rotation
+        cfg.init_proxy_rotator();
 
         Ok(cfg)
 }

@@ -53,7 +53,64 @@ Added a required `reason` field to all API responses that explains why an email 
 }
 ```
 
-## Proxy Rotation Enhancement (November 2025)
+## Proxy Rotation Bug Fix (November 2025)
+
+Fixed critical bug where 981 SOCKS5 proxies failed to rotate properly (always using the same proxy). The root cause was that `ProxyRotator` was being instantiated fresh inside `check_smtp()` for each request, causing the counter to always reset to 0 and preventing true round-robin rotation.
+
+### Root Cause:
+The `ProxyRotator` was created on-demand for each email verification request rather than being shared across requests.
+
+### Solution:
+1. **Shared ProxyRotator**: Created `Arc<ProxyRotator>` stored in `BackendConfig` with proper serde skip
+2. **Initialization at Startup**: Added `init_proxy_rotator()` method in `BackendConfig` that creates the shared rotator when configuration is loaded
+3. **HTTP Path Integration**: Updated API endpoint (`post.rs`) to inject shared rotator from config into `CheckEmailInput`
+4. **Worker Path Integration**: Updated worker (`do_work.rs`) to inject shared rotator from config into deserialized task input before calling `check_email()`
+
+### Files Modified:
+- `core/src/util/input_output.rs` - Added `proxy_rotator: Option<Arc<ProxyRotator>>` field with `#[serde(skip)]`
+- `core/src/smtp/proxy_rotator.rs` - Implemented `Debug` trait for `ProxyRotator`
+- `core/src/smtp/mod.rs` - Updated `check_smtp()` to use shared rotator from input
+- `backend/src/config.rs` - Added shared rotator storage, `init_proxy_rotator()`, and `get_proxy_rotator()` methods
+- `backend/src/http/v0/check_email/post.rs` - Injects shared rotator into API requests
+- `backend/src/worker/do_work.rs` - Injects shared rotator into worker task processing
+
+## Enhanced SOCKS5 Error Messages (November 2025)
+
+Enhanced SOCKS5 proxy error messages to provide specific, actionable information instead of generic "General failure" messages.
+
+### Before:
+```
+SOCKS5 proxy error: General failure
+```
+
+### After:
+```
+SOCKS5 General Failure (reply code 0x01): The proxy server encountered an internal error and could not complete the request. Possible causes: (1) The proxy cannot reach the target SMTP server - check if the target is accessible from the proxy's network. (2) The proxy has internal configuration issues or is overloaded. (3) Firewall or security policy on the proxy is blocking this connection. (4) The proxy's outbound network is restricted. Try using a different proxy or verify the target server is reachable from the proxy's location.
+```
+
+### Error Codes Covered:
+- **0x01 General Failure**: Proxy internal error with troubleshooting steps
+- **0x02 Connection Not Allowed**: Proxy ruleset blocks connection
+- **0x03 Network Unreachable**: Proxy cannot route to target network
+- **0x04 Host Unreachable**: Target SMTP server not responding
+- **0x05 Connection Refused**: SMTP server refused connection
+- **0x06 TTL Expired**: Connection timeout due to TTL
+- **0x07 Command Not Supported**: Proxy doesn't support CONNECT
+- **0x08 Address Type Not Supported**: Address format not supported
+- **Connection Timeout**: Proxy/target didn't respond in time
+
+### Additional SOCKS5 Error Types:
+- `SocksVersionMismatch`: Wrong SOCKS protocol version
+- `AuthenticationRequired/Rejected`: Proxy auth issues
+- `ExceededMaxDomainLen`: Domain name too long
+- `InvalidDomainType/AuthMethod`: Protocol format issues
+- Various timeout and connection errors
+
+### Files Modified:
+- `core/src/smtp/error.rs` - Added `format_socks5_error_detailed()` and `format_socks5_reply_error()` functions
+- `core/src/lib.rs` - Integrated enhanced SOCKS5 descriptions into `format_smtp_error_reason()`
+
+## Proxy Rotation Configuration (November 2025)
 
 Added automatic proxy rotation functionality that allows Reacher to automatically rotate between multiple defined proxies for load balancing.
 

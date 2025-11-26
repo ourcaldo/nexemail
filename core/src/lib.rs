@@ -184,7 +184,13 @@ fn format_smtp_error_reason(error: &SmtpError) -> String {
                 SmtpError::Timeout(duration) => {
                         format!("Unknown: SMTP connection timed out after {:?}", duration)
                 }
-                SmtpError::Socks5(e) => format!("Unknown: SOCKS5 proxy connection failed - {}", e),
+                SmtpError::Socks5(_) => {
+                        if let Some(detailed) = error.get_detailed_socks5_description() {
+                                format!("Unknown: {}", detailed)
+                        } else {
+                                format!("Unknown: SOCKS5 proxy connection failed - {}", error)
+                        }
+                }
                 SmtpError::AnyhowError(e) => format!("Unknown: Unexpected error - {}", e),
         }
 }

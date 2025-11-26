@@ -28,6 +28,16 @@ pub struct ProxyRotator {
         strategy: ProxyRotationStrategy,
 }
 
+impl std::fmt::Debug for ProxyRotator {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_struct("ProxyRotator")
+                        .field("proxy_ids_count", &self.proxy_ids.len())
+                        .field("counter", &self.counter.load(std::sync::atomic::Ordering::SeqCst))
+                        .field("strategy", &self.strategy)
+                        .finish()
+        }
+}
+
 impl ProxyRotator {
         /// Create a new ProxyRotator with the given proxy IDs and rotation strategy.
         pub fn new(proxy_ids: Vec<String>, strategy: ProxyRotationStrategy) -> Self {

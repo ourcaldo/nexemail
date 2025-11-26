@@ -28,6 +28,7 @@ mod yahoo;
 use crate::util::input_output::CheckEmailInput;
 use crate::util::public_ip::get_public_ip;
 use crate::EmailAddress;
+use crate::LOG_TARGET;
 use connect::check_smtp_with_retry;
 use hickory_proto::rr::Name;
 use proxy_rotator::ProxyRotator;
@@ -217,29 +218,36 @@ pub async fn check_smtp(
         }
         .clone();
 
-        let rotator = if input.verif_method.proxy_pool.enabled {
-                let proxy_ids: Vec<String> = input
-                        .verif_method
-                        .proxies
-                        .keys()
-                        .filter(|id| *id != verif_method::DEFAULT_PROXY_ID)
-                        .cloned()
-                        .collect();
-                if proxy_ids.is_empty() {
-                        None
+        let proxy = if input.verif_method.proxy_pool.enabled {
+                if let Some(rotator) = &input.proxy_rotator {
+                        input.verif_method.get_proxy_with_rotation(&email_provider, Some(rotator.as_ref()))
                 } else {
-                        Some(ProxyRotator::new(
-                                proxy_ids,
-                                input.verif_method.proxy_pool.strategy.clone(),
-                        ))
+                        tracing::warn!(
+                                target: LOG_TARGET,
+                                email=%to_email,
+                                "Proxy pool is enabled but no shared rotator provided. Creating a new rotator for this request. \
+                                This means round-robin rotation will not work correctly across requests."
+                        );
+                        let proxy_ids: Vec<String> = input
+                                .verif_method
+                                .proxies
+                                .keys()
+                                .filter(|id| *id != verif_method::DEFAULT_PROXY_ID)
+                                .cloned()
+                                .collect();
+                        if proxy_ids.is_empty() {
+                                input.verif_method.get_proxy_with_rotation(&email_provider, None)
+                        } else {
+                                let rotator = ProxyRotator::new(
+                                        proxy_ids,
+                                        input.verif_method.proxy_pool.strategy.clone(),
+                                );
+                                input.verif_method.get_proxy_with_rotation(&email_provider, Some(&rotator))
+                        }
                 }
         } else {
-                None
+                input.verif_method.get_proxy_with_rotation(&email_provider, None)
         };
-
-        let proxy = input
-                .verif_method
-                .get_proxy_with_rotation(&email_provider, rotator.as_ref());
         let proxy_data = format_proxy_data(proxy).await;
         let verif_method = VerifMethodSmtp::new(smtp_verif_method_config.clone(), proxy.cloned());
 

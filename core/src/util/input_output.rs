@@ -16,6 +16,7 @@
 
 use crate::misc::{MiscDetails, MiscError};
 use crate::mx::{MxDetails, MxError};
+use crate::smtp::proxy_rotator::ProxyRotator;
 use crate::smtp::verif_method::VerifMethod;
 use crate::smtp::{SmtpDebug, SmtpDetails, SmtpError, SmtpErrorDesc};
 use crate::syntax::SyntaxDetails;
@@ -26,6 +27,7 @@ use derive_builder::Builder;
 use serde::{ser::SerializeMap, Deserialize, Serialize, Serializer};
 use std::fmt::Display;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 /// Wrapper around the `EmailAddress` from `async_smtp` to allow for
@@ -116,6 +118,14 @@ pub struct CheckEmailInput {
 
         pub verif_method: VerifMethod,
 
+        /// Shared proxy rotator for round-robin proxy selection across requests.
+        /// This should be created once and shared across all email verification requests
+        /// to ensure proper rotation. If None, a new rotator will be created for each request
+        /// (which defeats the purpose of round-robin rotation).
+        #[serde(skip)]
+        #[builder(default)]
+        pub proxy_rotator: Option<Arc<ProxyRotator>>,
+
         /// Whether to check if a gravatar image is existing for the given email.
         /// Adds a bit of latency to the verification process.
         ///
@@ -150,6 +160,7 @@ impl Default for CheckEmailInput {
                 CheckEmailInput {
                         to_email: "".into(),
                         verif_method: VerifMethod::default(),
+                        proxy_rotator: None,
                         check_gravatar: false,
                         haveibeenpwned_api_key: None,
                         webdriver_addr: "http://localhost:9515".into(),

@@ -107,30 +107,86 @@ static INIT: Once = Once::new();
 /// check-if-email-exists uses rustls for its TLS connections. This function
 /// initializes the default crypto provider for rustls.
 pub fn initialize_crypto_provider() {
-	INIT.call_once(|| {
-		ring::default_provider().install_default().unwrap();
-	});
+        INIT.call_once(|| {
+                ring::default_provider().install_default().unwrap();
+        });
 }
 
 /// Given an email's misc and smtp details, calculate an estimate of our
-/// confidence on how reachable the email is.
+/// confidence on how reachable the email is, along with a human-readable reason.
+///
+/// Returns a tuple of (Reachable, String) where the String is the reason.
 ///
 /// Maybe we can switch to a points-based system?
 /// ref: https://github.com/reacherhq/check-if-email-exists/issues/935
-fn calculate_reachable(misc: &MiscDetails, smtp: &Result<SmtpDetails, SmtpError>) -> Reachable {
-	if let Ok(smtp) = smtp {
-		if misc.is_disposable || misc.is_role_account || smtp.is_catch_all || smtp.has_full_inbox {
-			return Reachable::Risky;
-		}
+fn calculate_reachable_with_reason(
+        misc: &MiscDetails,
+        smtp: &Result<SmtpDetails, SmtpError>,
+) -> (Reachable, String) {
+        if let Ok(smtp_details) = smtp {
+                let mut risky_reasons: Vec<&str> = Vec::new();
 
-		if !smtp.is_deliverable || !smtp.can_connect_smtp || smtp.is_disabled {
-			return Reachable::Invalid;
-		}
+                if misc.is_disposable {
+                        risky_reasons.push("disposable email address");
+                }
+                if misc.is_role_account {
+                        risky_reasons.push("role-based account (e.g., admin@, support@)");
+                }
+                if smtp_details.is_catch_all {
+                        risky_reasons.push("catch-all address (accepts all emails)");
+                }
+                if smtp_details.has_full_inbox {
+                        risky_reasons.push("inbox is full");
+                }
 
-		Reachable::Safe
-	} else {
-		Reachable::Unknown
-	}
+                if !risky_reasons.is_empty() {
+                        let reason = format!("Risky: {}", risky_reasons.join(", "));
+                        return (Reachable::Risky, reason);
+                }
+
+                let mut invalid_reasons: Vec<&str> = Vec::new();
+
+                if !smtp_details.can_connect_smtp {
+                        invalid_reasons.push("cannot connect to SMTP server");
+                }
+                if smtp_details.is_disabled {
+                        invalid_reasons.push("email account is disabled");
+                }
+                if !smtp_details.is_deliverable {
+                        invalid_reasons.push("email is not deliverable");
+                }
+
+                if !invalid_reasons.is_empty() {
+                        let reason = format!("Invalid: {}", invalid_reasons.join(", "));
+                        return (Reachable::Invalid, reason);
+                }
+
+                (Reachable::Safe, "Email verification passed all checks".to_string())
+        } else {
+                let smtp_error = smtp.as_ref().err().unwrap();
+                let reason = format_smtp_error_reason(smtp_error);
+                (Reachable::Unknown, reason)
+        }
+}
+
+fn format_smtp_error_reason(error: &SmtpError) -> String {
+        match error {
+                SmtpError::YahooError(e) => format!("Unknown: Yahoo verification failed - {}", e),
+                SmtpError::GmailError(e) => format!("Unknown: Gmail verification failed - {}", e),
+                SmtpError::HeadlessError(e) => {
+                        format!("Unknown: Headless browser verification failed - {}", e)
+                }
+                SmtpError::Microsoft365Error(e) => {
+                        format!("Unknown: Microsoft 365 verification failed - {}", e)
+                }
+                SmtpError::AsyncSmtpError(e) => format!("Unknown: SMTP error - {}", e),
+                SmtpError::IOError(e) => format!("Unknown: I/O error during SMTP connection - {}", e),
+                SmtpError::Timeout(duration) => {
+                        format!("Unknown: SMTP connection timed out after {:?}", duration)
+                }
+                SmtpError::Socks5(e) => format!("Unknown: SOCKS5 proxy connection failed - {}", e),
+                SmtpError::AnyhowError(e) => format!("Unknown: Unexpected error - {}", e),
+        }
 }
 
 /// The main function of this library: verify a single email. Performs, in the
@@ -144,138 +200,150 @@ fn calculate_reachable(misc: &MiscDetails, smtp: &Result<SmtpDetails, SmtpError>
 /// Returns a `CheckEmailOutput` output, whose `is_reachable` field is one of
 /// `Safe`, `Invalid`, `Risky` or `Unknown`.
 pub async fn check_email(input: &CheckEmailInput) -> CheckEmailOutput {
-	initialize_crypto_provider();
-	let start_time = SystemTime::now();
-	let to_email = &input.to_email;
+        initialize_crypto_provider();
+        let start_time = SystemTime::now();
+        let to_email = &input.to_email;
 
-	tracing::debug!(
-		target: LOG_TARGET,
-		email=%to_email,
-		"Checking email"
-	);
-	let mut my_syntax = check_syntax(to_email.as_ref());
-	if !my_syntax.is_valid_syntax {
-		return CheckEmailOutput {
-			input: to_email.to_string(),
-			is_reachable: Reachable::Invalid,
-			syntax: my_syntax,
-			..Default::default()
-		};
-	}
+        tracing::debug!(
+                target: LOG_TARGET,
+                email=%to_email,
+                "Checking email"
+        );
+        let mut my_syntax = check_syntax(to_email.as_ref());
+        if !my_syntax.is_valid_syntax {
+                return CheckEmailOutput {
+                        input: to_email.to_string(),
+                        is_reachable: Reachable::Invalid,
+                        reason: "Invalid: email syntax is invalid".to_string(),
+                        syntax: my_syntax,
+                        ..Default::default()
+                };
+        }
 
-	tracing::debug!(
-		target: LOG_TARGET,
-		email=%to_email,
-		syntax=?my_syntax,
-		"Found syntax validation"
-	);
+        tracing::debug!(
+                target: LOG_TARGET,
+                email=%to_email,
+                syntax=?my_syntax,
+                "Found syntax validation"
+        );
 
-	let my_mx = match check_mx(&my_syntax).await {
-		Ok(m) => m,
-		e => {
-			get_similar_mail_provider(&mut my_syntax);
+        let my_mx = match check_mx(&my_syntax).await {
+                Ok(m) => m,
+                e => {
+                        get_similar_mail_provider(&mut my_syntax);
 
-			// This happens when there's an internal error while checking MX
-			// records. Should happen fairly rarely.
-			return CheckEmailOutput {
-				input: to_email.to_string(),
-				is_reachable: Reachable::Unknown,
-				mx: e,
-				syntax: my_syntax,
-				..Default::default()
-			};
-		}
-	};
+                        // This happens when there's an internal error while checking MX
+                        // records. Should happen fairly rarely.
+                        let reason = match &e {
+                                Err(mx_error) => {
+                                        format!("Unknown: MX lookup failed - {}", mx_error)
+                                }
+                                Ok(_) => "Unknown: unexpected MX lookup state".to_string(),
+                        };
+                        return CheckEmailOutput {
+                                input: to_email.to_string(),
+                                is_reachable: Reachable::Unknown,
+                                reason,
+                                mx: e,
+                                syntax: my_syntax,
+                                ..Default::default()
+                        };
+                }
+        };
 
-	// Return if we didn't find any MX records.
-	if my_mx.lookup.is_err() {
-		get_similar_mail_provider(&mut my_syntax);
+        // Return if we didn't find any MX records.
+        if my_mx.lookup.is_err() {
+                get_similar_mail_provider(&mut my_syntax);
 
-		return CheckEmailOutput {
-			input: to_email.to_string(),
-			is_reachable: Reachable::Invalid,
-			mx: Ok(my_mx),
-			syntax: my_syntax,
-			..Default::default()
-		};
-	}
+                return CheckEmailOutput {
+                        input: to_email.to_string(),
+                        is_reachable: Reachable::Invalid,
+                        reason: "Invalid: no MX records found for domain".to_string(),
+                        mx: Ok(my_mx),
+                        syntax: my_syntax,
+                        ..Default::default()
+                };
+        }
 
-	let mx_hosts: Vec<String> = my_mx
-		.lookup
-		.as_ref()
-		.expect("If lookup is error, we already returned. qed.")
-		.iter()
-		.map(|host| host.to_string())
-		.collect();
+        let mx_hosts: Vec<String> = my_mx
+                .lookup
+                .as_ref()
+                .expect("If lookup is error, we already returned. qed.")
+                .iter()
+                .map(|host| host.to_string())
+                .collect();
 
-	tracing::debug!(
-		target: LOG_TARGET,
-		email=%to_email,
-		mx_hosts=?mx_hosts,
-		"Found MX hosts"
-	);
+        tracing::debug!(
+                target: LOG_TARGET,
+                email=%to_email,
+                mx_hosts=?mx_hosts,
+                "Found MX hosts"
+        );
 
-	let my_misc = check_misc(
-		&my_syntax,
-		input.check_gravatar,
-		input.haveibeenpwned_api_key.clone(),
-	)
-	.await;
+        let my_misc = check_misc(
+                &my_syntax,
+                input.check_gravatar,
+                input.haveibeenpwned_api_key.clone(),
+        )
+        .await;
 
-	tracing::debug!(
-		target: LOG_TARGET,
-		email=%to_email,
-		misc=?my_misc,
-		"Found misc details"
-	);
+        tracing::debug!(
+                target: LOG_TARGET,
+                email=%to_email,
+                misc=?my_misc,
+                "Found misc details"
+        );
 
-	// From the list of MX records, we choose the one with the lowest priority.
-	let mx_records = my_mx
-		.lookup
-		.as_ref()
-		.expect("If lookup is error, we already returned. qed.")
-		.iter()
-		.min_by_key(|a| a.preference())
-		.expect("There should be at least one MX record after filtering.");
-	let host = mx_records;
+        // From the list of MX records, we choose the one with the lowest priority.
+        let mx_records = my_mx
+                .lookup
+                .as_ref()
+                .expect("If lookup is error, we already returned. qed.")
+                .iter()
+                .min_by_key(|a| a.preference())
+                .expect("There should be at least one MX record after filtering.");
+        let host = mx_records;
 
-	let (my_smtp, smtp_debug) = check_smtp(
-		my_syntax
-			.address
-			.as_ref()
-			.expect("We already checked that the email has valid format. qed."),
-		host.exchange(),
-		my_syntax.domain.as_ref(),
-		input,
-	)
-	.await;
+        let (my_smtp, smtp_debug) = check_smtp(
+                my_syntax
+                        .address
+                        .as_ref()
+                        .expect("We already checked that the email has valid format. qed."),
+                host.exchange(),
+                my_syntax.domain.as_ref(),
+                input,
+        )
+        .await;
 
-	if my_smtp.is_err() {
-		get_similar_mail_provider(&mut my_syntax);
-	}
+        if my_smtp.is_err() {
+                get_similar_mail_provider(&mut my_syntax);
+        }
 
-	let end_time = SystemTime::now();
+        let end_time = SystemTime::now();
 
-	let output = CheckEmailOutput {
-		input: to_email.to_string(),
-		is_reachable: calculate_reachable(&my_misc, &my_smtp),
-		misc: Ok(my_misc),
-		mx: Ok(my_mx),
-		smtp: my_smtp,
-		syntax: my_syntax,
-		debug: DebugDetails {
-			start_time: start_time.into(),
-			end_time: end_time.into(),
-			duration: end_time
-				.duration_since(start_time)
-				.unwrap_or(Duration::from_secs(0)),
-			smtp: smtp_debug,
-			backend_name: input.backend_name.clone(),
-		},
-	};
+        let (is_reachable, reason) = calculate_reachable_with_reason(&my_misc, &my_smtp);
 
-	#[cfg(feature = "sentry")]
-	log_unknown_errors(&output, &input.backend_name);
+        let output = CheckEmailOutput {
+                input: to_email.to_string(),
+                is_reachable,
+                reason,
+                misc: Ok(my_misc),
+                mx: Ok(my_mx),
+                smtp: my_smtp,
+                syntax: my_syntax,
+                debug: DebugDetails {
+                        start_time: start_time.into(),
+                        end_time: end_time.into(),
+                        duration: end_time
+                                .duration_since(start_time)
+                                .unwrap_or(Duration::from_secs(0)),
+                        smtp: smtp_debug,
+                        backend_name: input.backend_name.clone(),
+                },
+        };
 
-	output
+        #[cfg(feature = "sentry")]
+        log_unknown_errors(&output, &input.backend_name);
+
+        output
 }

@@ -327,7 +327,7 @@ dependencies = [
  "anyhow",
  "base64 0.13.1",
  "futures",
- "hostname",
+ "hostname 0.3.1",
  "log",
  "nom",
  "pin-project",
@@ -614,6 +614,7 @@ dependencies = [
  "futures",
  "hickory-proto",
  "hickory-resolver",
+ "hostname 0.4.1",
  "levenshtein",
  "log",
  "mailchecker",
@@ -1696,6 +1697,17 @@ dependencies = [
  "libc",
  "match_cfg",
  "winapi",
+]
+
+[[package]]
+name = "hostname"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a56f203cd1c76362b69e3863fd987520ac36cf70a8c92627449b2f64a8cf7d65"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "windows-link",
 ]
 
 [[package]]
@@ -3222,7 +3234,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52e44394d2086d010551b14b53b1f24e31647570cd1deb0379e2c21b329aba00"
 dependencies = [
- "hostname",
+ "hostname 0.3.1",
  "quick-error",
 ]
 

@@ -15,6 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 pub mod input_output;
+pub mod public_ip;
 #[cfg(feature = "sentry")]
 pub mod sentry;
 pub mod ser_with_display;

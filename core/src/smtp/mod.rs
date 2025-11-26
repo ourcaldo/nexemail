@@ -25,6 +25,7 @@ pub mod verif_method;
 mod yahoo;
 
 use crate::util::input_output::CheckEmailInput;
+use crate::util::public_ip::get_public_ip;
 use crate::EmailAddress;
 use connect::check_smtp_with_retry;
 use hickory_proto::rr::Name;
@@ -46,32 +47,64 @@ pub struct SmtpDebugVerifMethodSmtp {
         pub host: String,
         /// The proxy used for the SMTP connection.
         pub verif_method: VerifMethodSmtpConfig,
-        /// The actual proxy data in format host:port@username:password or host:port
-        #[serde(skip_serializing_if = "Option::is_none")]
-        pub proxy_data: Option<String>,
+        /// The actual proxy data - always required.
+        /// Format: "proxy:host:port" or "proxy:host:port@username:password" when using proxy
+        /// Format: "local:ip_address" when using local connection (no proxy)
+        pub proxy_data: String,
 }
 
-fn format_proxy_data(proxy: Option<&CheckEmailInputProxy>) -> Option<String> {
-        proxy.map(|p| {
-                match (&p.username, &p.password) {
-                        (Some(user), Some(pass)) => format!("{}:{}@{}:{}", p.host, p.port, user, pass),
-                        _ => format!("{}:{}", p.host, p.port),
+async fn format_proxy_data(proxy: Option<&CheckEmailInputProxy>) -> String {
+        match proxy {
+                Some(p) => {
+                        match (&p.username, &p.password) {
+                                (Some(user), Some(pass)) => format!("proxy:{}:{}@{}:{}", p.host, p.port, user, pass),
+                                _ => format!("proxy:{}:{}", p.host, p.port),
+                        }
                 }
-        })
+                None => get_public_ip().await,
+        }
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SmtpDebugVerifMethodApi {
+        /// The proxy/connection data - always required.
+        /// Format: "local:ip_address" for API verification (no proxy used)
+        pub proxy_data: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SmtpDebugVerifMethodHeadless {
+        /// The proxy/connection data - always required.
+        /// Format: "local:ip_address" for headless verification (no proxy used)
+        pub proxy_data: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SmtpDebugVerifMethodSkipped {
+        /// The proxy/connection data - always required.
+        /// Format: "local:ip_address" when skipped
+        pub proxy_data: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 pub enum SmtpDebugVerifMethod {
         /// Email verification was done via SMTP.
         Smtp(SmtpDebugVerifMethodSmtp),
         /// Email verification was done via an HTTP API.
-        Api,
+        Api(SmtpDebugVerifMethodApi),
         /// Email verification was done via a headless browser.
-        Headless,
+        Headless(SmtpDebugVerifMethodHeadless),
         /// Email verification was skipped.
-        #[default]
-        Skipped,
+        Skipped(SmtpDebugVerifMethodSkipped),
+}
+
+impl Default for SmtpDebugVerifMethod {
+        fn default() -> Self {
+                SmtpDebugVerifMethod::Skipped(SmtpDebugVerifMethodSkipped {
+                        proxy_data: "local:unknown".to_string(),
+                })
+        }
 }
 
 /// Details that we gathered from connecting to this email via SMTP
@@ -113,6 +146,7 @@ pub async fn check_smtp(
         let smtp_verif_method_config = match &email_provider {
                 EmailProvider::HotmailB2C => match &input.verif_method.hotmailb2c {
                         HotmailB2CVerifMethod::Headless => {
+                                let local_ip = get_public_ip().await;
                                 return (
                                         outlook::headless::check_password_recovery(
                                                 &to_email_str,
@@ -122,7 +156,9 @@ pub async fn check_smtp(
                                         .await
                                         .map_err(Into::into),
                                         SmtpDebug {
-                                                verif_method: SmtpDebugVerifMethod::Headless,
+                                                verif_method: SmtpDebugVerifMethod::Headless(SmtpDebugVerifMethodHeadless {
+                                                        proxy_data: local_ip,
+                                                }),
                                         },
                                 );
                         }
@@ -130,16 +166,20 @@ pub async fn check_smtp(
                 },
                 EmailProvider::Yahoo => match &input.verif_method.yahoo {
                         YahooVerifMethod::Api => {
+                                let local_ip = get_public_ip().await;
                                 return (
                                         yahoo::check_api(&to_email_str, input)
                                                 .await
                                                 .map_err(Into::into),
                                         SmtpDebug {
-                                                verif_method: SmtpDebugVerifMethod::Api,
+                                                verif_method: SmtpDebugVerifMethod::Api(SmtpDebugVerifMethodApi {
+                                                        proxy_data: local_ip,
+                                                }),
                                         },
                                 );
                         }
                         YahooVerifMethod::Headless => {
+                                let local_ip = get_public_ip().await;
                                 return (
                                         yahoo::check_headless(
                                                 &to_email_str,
@@ -149,7 +189,9 @@ pub async fn check_smtp(
                                         .await
                                         .map_err(Into::into),
                                         SmtpDebug {
-                                                verif_method: SmtpDebugVerifMethod::Headless,
+                                                verif_method: SmtpDebugVerifMethod::Headless(SmtpDebugVerifMethodHeadless {
+                                                        proxy_data: local_ip,
+                                                }),
                                         },
                                 );
                         }
@@ -175,7 +217,7 @@ pub async fn check_smtp(
 
         // TODO: There's surely a way to not clone here.
         let proxy = input.verif_method.get_proxy(email_provider);
-        let proxy_data = format_proxy_data(proxy);
+        let proxy_data = format_proxy_data(proxy).await;
         let verif_method = VerifMethodSmtp::new(
                 smtp_verif_method_config.clone(),
                 proxy.cloned(),
@@ -239,7 +281,7 @@ mod tests {
                                 assert_eq!(verif_method.smtp_timeout, Some(Duration::from_millis(1)));
                                 assert_eq!(verif_method.retries, 1);
                                 assert_eq!(verif_method.proxy, None);
-                                assert_eq!(proxy_data, None);
+                                assert!(proxy_data.starts_with("local:"));
                         }
                         _ => panic!("Expected SmtpDebugVerifMethod::Smtp"),
                 }

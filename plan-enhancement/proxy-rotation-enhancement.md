@@ -1,5 +1,96 @@
 # Proxy Rotation Enhancement Plan
 
+## The Problem: Multiple Proxies Don't Rotate Without Routing Rules
+
+**Even when you define multiple proxies in the TOML config file or environment variables, Reacher will NOT automatically rotate between them.** The additional proxies simply sit idle unless you explicitly set routing rules to assign them to specific email providers.
+
+### Example: Config With Multiple Proxies (But No Rotation Happens!)
+
+#### TOML Config File (`backend_config.toml`)
+```toml
+backend_name = "my-reacher-backend"
+from_email = "verify@example.com"
+hello_name = "example.com"
+
+# Default proxy - THIS IS THE ONLY ONE THAT GETS USED!
+[proxy]
+host = "proxy1.example.com"
+port = 1080
+username = "user1"
+password = "pass1"
+
+# Additional proxies defined here...
+[overrides.proxies.proxy2]
+host = "proxy2.example.com"
+port = 1080
+username = "user2"
+password = "pass2"
+
+[overrides.proxies.proxy3]
+host = "proxy3.example.com"
+port = 1080
+username = "user3"
+password = "pass3"
+
+# PROBLEM: proxy2 and proxy3 are NEVER used!
+# They just sit idle because no routing rules are set.
+```
+
+#### Environment Variables (Same Problem)
+```bash
+# Default proxy
+RCH__PROXY__HOST=proxy1.example.com
+RCH__PROXY__PORT=1080
+RCH__PROXY__USERNAME=user1
+RCH__PROXY__PASSWORD=pass1
+
+# Additional proxies
+RCH__OVERRIDES__PROXIES__PROXY2__HOST=proxy2.example.com
+RCH__OVERRIDES__PROXIES__PROXY2__PORT=1080
+RCH__OVERRIDES__PROXIES__PROXY2__USERNAME=user2
+RCH__OVERRIDES__PROXIES__PROXY2__PASSWORD=pass2
+
+RCH__OVERRIDES__PROXIES__PROXY3__HOST=proxy3.example.com
+RCH__OVERRIDES__PROXIES__PROXY3__PORT=1080
+RCH__OVERRIDES__PROXIES__PROXY3__USERNAME=user3
+RCH__OVERRIDES__PROXIES__PROXY3__PASSWORD=pass3
+
+# PROBLEM: proxy2 and proxy3 are NEVER used!
+# All requests go through proxy1 (the default).
+```
+
+### What Happens Currently
+
+When you send email verification requests:
+- **Request 1**: Uses `proxy1.example.com` (default)
+- **Request 2**: Uses `proxy1.example.com` (default)
+- **Request 3**: Uses `proxy1.example.com` (default)
+- ... and so on. **Always the same proxy!**
+
+The only way to use `proxy2` or `proxy3` is to set explicit routing rules:
+```bash
+# Route Gmail to proxy2
+RCH__OVERRIDES__GMAIL__TYPE=smtp
+RCH__OVERRIDES__GMAIL__PROXY=proxy2
+
+# Route Yahoo to proxy3
+RCH__OVERRIDES__YAHOO__TYPE=smtp
+RCH__OVERRIDES__YAHOO__PROXY=proxy3
+```
+
+But this is manual and doesn't provide true rotation for load balancing across all proxies.
+
+### What We Want
+
+Automatic rotation between all defined proxies:
+- **Request 1**: Uses `proxy1.example.com`
+- **Request 2**: Uses `proxy2.example.com`
+- **Request 3**: Uses `proxy3.example.com`
+- **Request 4**: Uses `proxy1.example.com` (back to start)
+- ... round-robin or random distribution
+
+---
+
 ## 1. Overview
 
 ### User Request
